@@ -78,7 +78,7 @@
         if(ws) {
           ws.close();
         }
-        ws = new WebSocket(`ws://127.0.0.1:8000/ws/${userId}`); // Change the URL accordingly
+        ws = new WebSocket(`ws://grrn-chatbox.onrender.com/ws/${userId}`); // Change the URL accordingly
 
         ws.onmessage = function(event) {
           try {
