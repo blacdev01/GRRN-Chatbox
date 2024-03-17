@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Application</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #E5DDD5;
+        padding: 10px;
+      }
+
+      #messages-container {
+        border: 1px solid #ccc;
+        height: 400px;
+        overflow-y: scroll;
+        padding: 10px;
+        background-color: #fff;
+        margin-bottom: 10px;
+      }
+
+      #message {
+        width: 70%;
+        padding: 10px;
+        border-radius: 10px;
+        border: none;
+      }
+
+      button {
+        width: 25%;
+        padding: 10px;
+        background-color: #128C7E;
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        margin-left: 5%;
+      }
+
+      .message {
+        background-color: #DCF8C6;
+        padding: 10px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        line-height: 1.6;
+        position: relative;
+      }
+
+
+    </style>
+</head>
+<body>
+    <h1>Chat Application</h1>
+    <!-- add a message saying "selected user is <user_id>" -->
+      <h4>{{ user_id }}</h4>
+
+    <div id="messages-container">
+        <!-- Messages will be displayed here -->
+    </div>
+
+    <div>
+        <input type="text" id="message" placeholder="Type a message...">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+
+
+    <script>
+      let ws;
+      let typingTimeout;
+      const TYPING_TIMEOUT = 1000; // User is considered to have stopped typing after 1 second
+      const messageInput = document.getElementById("message");
+
+      const typingMessageElement = document.createElement("div"); // Create a separate element for the "user is typing" message
+      messageInput.addEventListener('input', handleInput);
+
+      const userId = "{{ user_id }}"; // Replace with the user's ID from the server
+      function connectWebSocket() {
+        if(ws) {
+          ws.close();
+        }
+        ws = new WebSocket(`ws://127.0.0.1:8000/ws/${userId}`); // Change the URL accordingly
+
+        ws.onmessage = function(event) {
+          try {
+            let message = JSON.parse(event.data);
+            if (message.message) {
+              message = JSON.parse(message.message);
+            }
+            if (message.sender && message.content) {
+              // If the message is sent by the selected user, do not display it
+              if (message.sender !== userId) {
+                displayMessage(`${message.sender}: ${message.content}`, message.sender);
+              }
+            } else if (message.typing !== undefined && message.sender !== userId) {
+              if (message.typing) {
+                typingMessageElement.textContent = `${message.sender} is typing`;
+                displayMessage('', message.sender); // Call displayMessage to update the messages container
+              } else {
+                typingMessageElement.textContent = '';
+              }
+            } else {
+              console.error('Invalid message format:', message);
+            }
+          } catch (error) {
+            console.error('Error parsing message:', error);
+          }
+        };
+      }
+
+      function handleInput() {
+        clearTimeout(typingTimeout);
+        ws.send(JSON.stringify({ sender: userId, typing: true }));
+        typingTimeout = setTimeout(stopTyping, TYPING_TIMEOUT);
+      }
+
+      function stopTyping() {
+        ws.send(JSON.stringify({ sender: userId, typing: false }));
+      }
+
+      function sendMessage() {
+        const message = messageInput.value.trim();
+        if (message !== "" && ws) {
+          clearTimeout(typingTimeout);
+          ws.send(JSON.stringify({ sender: userId, content: message, typing: false }));
+          displayMessage(`You: ${message}`, userId); // Pass the sender's ID to the displayMessage function
+          messageInput.value = "";
+        }
+      }
+
+      function displayMessage(message, sender) { // Add a sender parameter to the function
+        const messagesContainer = document.getElementById("messages-container");
+        if (message !== '') { // Only create a new message element if the message is not empty
+          const messageElement = document.createElement("div");
+          messageElement.textContent = message;
+          messageElement.classList.add('message');
+          if (sender === userId) {
+              messageElement.classList.add('message-sent');
+          } else {
+              messageElement.classList.add('message-received');
+          }
+          messagesContainer.appendChild(messageElement);
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        messagesContainer.appendChild(typingMessageElement);
+      }      
+      messageInput.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+          e.preventDefault(); // Prevents the default action to be taken
+          sendMessage();
+        }
+      });
+
+      // Connect WebSocket when page loads
+      connectWebSocket();
+    </script>
+</body>
+</html>
